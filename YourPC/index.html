@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 Audio Stream + Waveform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .connected { background: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        .disconnected { background: #f44336; }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .btn-connect {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-connect:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .btn-record {
+            background: #ff5722;
+            color: white;
+        }
+        
+        .btn-record:hover {
+            background: #e64a19;
+            transform: translateY(-2px);
+        }
+        
+        .btn-record.recording {
+            background: #d32f2f;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .canvas-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        canvas {
+            width: 100%;
+            background: #000;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-box {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #64B5F6;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ ESP32-S3 Audio Stream</h1>
+        
+        <div class="status">
+            <div>
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Disconnesso</span>
+            </div>
+            <div id="serverInfo">ws://localhost:8765</div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn-connect" id="connectBtn" onclick="toggleConnection()">
+                🔌 Connetti
+            </button>
+            <button class="btn-record" id="recordBtn" onclick="toggleRecording()" disabled>
+                ⏺️ Registra WAV
+            </button>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="waveformCanvas" height="200"></canvas>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="spectrumCanvas" height="150"></canvas>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="sampleRate">16000</div>
+                <div class="stat-label">Sample Rate (Hz)</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="packetCount">0</div>
+                <div class="stat-label">Pacchetti Ricevuti</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="audioLevel">0%</div>
+                <div class="stat-label">Volume</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="latency">-</div>
+                <div class="stat-label">Latenza (ms)</div>
+            </div>
+        </div>
+        
+        <div class="error" id="errorMsg"></div>
+    </div>
+
+    <script>
+        // Configurazione
+        const WS_URL = 'ws://localhost:8765';
+        const SAMPLE_RATE = 16000;
+        const CHANNELS = 1;
+        const BITS_PER_SAMPLE = 16;
+        
+        // Variabili globali
+        let ws = null;
+        let audioContext = null;
+        let scriptProcessor = null;
+        let analyser = null;
+        let isConnected = false;
+        let isRecording = false;
+        let recordedChunks = [];
+        let packetCount = 0;
+        let startTime = null;
+        
+        // Canvas
+        const waveformCanvas = document.getElementById('waveformCanvas');
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const waveformCtx = waveformCanvas.getContext('2d');
+        const spectrumCtx = spectrumCanvas.getContext('2d');
+        
+        // Adatta dimensione canvas
+        function resizeCanvas() {
+            waveformCanvas.width = waveformCanvas.offsetWidth;
+            spectrumCanvas.width = spectrumCanvas.offsetWidth;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // Connetti/Disconnetti WebSocket
+        async function toggleConnection() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                await connect();
+            }
+        }
+        
+        async function connect() {
+            try {
+                showError('');
+                ws = new WebSocket(WS_URL);
+                ws.binaryType = 'arraybuffer';
+                
+                ws.onopen = () => {
+                    console.log('✅ WebSocket connesso');
+                    isConnected = true;
+                    updateUI();
+                    initAudio();
+                };
+                
+                ws.onmessage = (event) => {
+                    handleAudioData(event.data);
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showError('Errore connessione WebSocket');
+                };
+                
+                ws.onclose = () => {
+                    console.log('❌ WebSocket chiuso');
+                    isConnected = false;
+                    updateUI();
+                };
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                showError('Impossibile connettersi al server: ' + error.message);
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            isConnected = false;
+            updateUI();
+        }
+        
+        // Inizializza Audio Context
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: SAMPLE_RATE
+            });
+            
+            // Analyser per visualizzazioni
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            analyser.smoothingTimeConstant = 0.8;
+            
+            // ScriptProcessor per elaborare i dati grezzi
+            // Nota: in futuro usare AudioWorklet
+            const bufferSize = 4096;
+            scriptProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+            
+            scriptProcessor.onaudioprocess = (e) => {
+                // Output silenzioso (l'audio vero viene dai dati WebSocket)
+                const output = e.outputBuffer.getChannelData(0);
+                for (let i = 0; i < output.length; i++) {
+                    output[i] = 0;
+                }
+            };
+            
+            scriptProcessor.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            // Avvia visualizzazioni
+            drawWaveform();
+            drawSpectrum();
+        }
+        
+        // Elabora dati audio ricevuti
+        function handleAudioData(data) {
+            if (!audioContext) return;
+            
+            const startTime = performance.now();
+            
+            // Converti ArrayBuffer in Int16Array
+            const int16Data = new Int16Array(data);
+            
+            // Converti in Float32Array (-1.0 a 1.0) per Web Audio API
+            const float32Data = new Float32Array(int16Data.length);
+            for (let i = 0; i < int16Data.length; i++) {
+                float32Data[i] = int16Data[i] / 32768.0;
+            }
+            
+            // Crea AudioBuffer
+            const audioBuffer = audioContext.createBuffer(1, float32Data.length, SAMPLE_RATE);
+            audioBuffer.getChannelData(0).set(float32Data);
+            
+            // Crea source e riproduci
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(analyser);
+            source.connect(audioContext.destination);
+            source.start(0);
+            
+            // Aggiorna statistiche
+            packetCount++;
+            document.getElementById('packetCount').textContent = packetCount;
+            
+            // Calcola livello audio
+            const rms = Math.sqrt(float32Data.reduce((sum, val) => sum + val*val, 0) / float32Data.length);
+            const level = Math.min(100, Math.round(rms * 200 * 100));
+            document.getElementById('audioLevel').textContent = level + '%';
+            
+            // Calcola latenza approssimativa
+            if (packetCount === 1) {
+                document.getElementById('latency').textContent = '~100';
+            }
+            
+            // Registra se attivo
+            if (isRecording) {
+                recordedChunks.push(data);
+            }
+        }
+        
+        // Disegna waveform
+        function drawWaveform() {
+            requestAnimationFrame(drawWaveform);
+            
+            if (!analyser) return;
+            
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+            
+            const ctx = waveformCtx;
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            
+            ctx.fillStyle = 'rgb(0, 0, 0)';
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgb(100, 181, 246)';
+            ctx.beginPath();
+            
+            const sliceWidth = width / bufferLength;
+            let x = 0;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * height / 2;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                
+                x += sliceWidth;
+            }
+            
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+            
+            // Griglia
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+        }
+        
+        // Disegna spettro frequenze
+        function drawSpectrum() {
+            requestAnimationFrame(drawSpectrum);
+            
+            if (!analyser) return;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+            
+            const ctx = spectrumCtx;
+            const width = spectrumCanvas.width;
+            const height = spectrumCanvas.height;
+            
+            ctx.fillStyle = 'rgb(0, 0, 0)';
+            ctx.fillRect(0, 0, width, height);
+            
+            const barWidth = (width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] / 255 * height;
+                
+                // Gradiente colore
+                const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+                gradient.addColorStop(0, 'rgb(255, 87, 34)');
+                gradient.addColorStop(0.5, 'rgb(255, 193, 7)');
+                gradient.addColorStop(1, 'rgb(76, 175, 80)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                
+                x += barWidth + 1;
+            }
+        }
+        
+        // Registra/Stop registrazione
+        function toggleRecording() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('recordBtn');
+            
+            if (isRecording) {
+                recordedChunks = [];
+                btn.textContent = '⏹️ Stop Registra';
+                btn.classList.add('recording');
+            } else {
+                btn.textContent = '⏺️ Registra WAV';
+                btn.classList.remove('recording');
+                saveWAV();
+            }
+        }
+        
+        // Salva file WAV
+        function saveWAV() {
+            if (recordedChunks.length === 0) return;
+            
+            const buffer = mergeBuffers(recordedChunks);
+            const wavBlob = bufferToWave(buffer, buffer.length);
+            const url = URL.createObjectURL(wavBlob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `recording_${Date.now()}.wav`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            console.log('File WAV salvato');
+        }
+        
+        function mergeBuffers(chunks) {
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+            const merged = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                merged.set(new Uint8Array(chunk), offset);
+                offset += chunk.byteLength;
+            }
+            return merged;
+        }
+        
+        function bufferToWave(abuffer, len) {
+            const numOfChan = CHANNELS;
+            const length = len * numOfChan * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+            const channels = [];
+            let sample;
+            let offset = 0;
+            let pos = 0;
+            
+            // Scrivi header WAV
+            setUint32(0x46464952); // "RIFF"
+            setUint32(length - 8); // file length - 8
+            setUint32(0x45564157); // "WAVE"
+            setUint32(0x20746d66); // "fmt " chunk
+            setUint32(16); // length = 16
+            setUint16(1); // PCM (uncompressed)
+            setUint16(numOfChan);
+            setUint32(SAMPLE_RATE);
+            setUint32(SAMPLE_RATE * 2 * numOfChan); // avg. bytes/sec
+            setUint16(numOfChan * 2); // block-align
+            setUint16(16); // 16-bit (hardcoded in this example)
+            setUint32(0x61746164); // "data" - chunk
+            setUint32(length - pos - 4); // chunk length
+            
+            // Scrivi dati audio
+            const int16Data = new Int16Array(abuffer);
+            for (let i = 0; i < int16Data.length; i += numOfChan) {
+                for (let ch = 0; ch < numOfChan; ch++) {
+                    view.setInt16(44 + offset, int16Data[i + ch] || 0, true);
+                    offset += 2;
+                }
+            }
+            
+            return new Blob([buffer], { type: "audio/wav" });
+            
+            function setUint16(data) {
+                view.setUint16(pos, data, true);
+                pos += 2;
+            }
+            
+            function setUint32(data) {
+                view.setUint32(pos, data, true);
+                pos += 4;
+            }
+        }
+        
+        // UI helpers
+        function updateUI() {
+            const btn = document.getElementById('connectBtn');
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const recordBtn = document.getElementById('recordBtn');
+            
+            if (isConnected) {
+                btn.textContent = '🔌 Disconnetti';
+                btn.classList.remove('btn-connect');
+                btn.style.background = '#f44336';
+                indicator.className = 'status-indicator connected';
+                statusText.textContent = 'Connesso';
+                recordBtn.disabled = false;
+            } else {
+                btn.textContent = '🔌 Connetti';
+                btn.classList.add('btn-connect');
+                btn.style.background = '';
+                indicator.className = 'status-indicator disconnected';
+                statusText.textContent = 'Disconnesso';
+                recordBtn.disabled = true;
+            }
+        }
+        
+        function showError(msg) {
+            const errorDiv = document.getElementById('errorMsg');
+            if (msg) {
+                errorDiv.textContent = msg;
+                errorDiv.style.display = 'block';
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                }, 5000);
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        // Inizializza
+        console.log('🎧 ESP32 Audio Stream ready');
+    </script>
+</body>
+</html>
