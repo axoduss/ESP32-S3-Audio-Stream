@@ -42,7 +42,8 @@ Perfect for:
 On ESP32-S3
 - Arduino IDE 2.x or PlatformIO
 - ESP32 Arduino Core 3.x (by Espressif)
-- Libraries: WiFi, WiFiUdp 
+- Libraries: WiFi, WiFiUdp
+
 On PC/Server
 - Python 3.8+
 - Dependencies: 
