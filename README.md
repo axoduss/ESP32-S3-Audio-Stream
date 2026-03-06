@@ -1,6 +1,4 @@
-# Nome del Progetto
-
-🎙️ ESP32-S3 Audio Streaming System
+# 🎙️ ESP32-S3 Audio Streaming System
 Real-time audio streaming from ESP32-S3 with INMP441 microphone to web browser via WiFi, featuring live waveform visualization and spectrum analysis.
 
 ## Componenti
