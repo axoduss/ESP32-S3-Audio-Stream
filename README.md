@@ -2,7 +2,7 @@
 Real-time audio streaming from ESP32-S3 with INMP441 microphone to web browser via WiFi, featuring live waveform visualization and spectrum analysis.
 
 
-##🌟 Overview
+## 🌟 Overview
 
 This project enables real-time audio streaming from an ESP32-S3 board with an INMP441 I2S microphone to any web browser. The system uses UDP for low-latency audio transmission from the ESP32 to a Python bridge server, which converts it to WebSocket for browser compatibility.
 Perfect for:
@@ -21,26 +21,20 @@ Perfect for:
 | 💾 WAV Recording        | Record and download audio directly from browser            |
 | 📈 Live Statistics      | Monitor packets, volume, and latency in real-time          |
 | 🌐 Web Interface        | No app installation required - works in any modern browser |
-| 🔌 Easy Setup           |Simple Python bridge server with minimal dependencies       |
+| 🔌 Easy Setup           | Simple Python bridge server with minimal dependencies       |
 	
 
 	
-
 
 ## 🔧 Hardware Requirements
 
 |      Component     | Quantity |                      Notes                      |
-|:------------------:|:--------:|:-----------------------------------------------:|
+|------------------|:--------:|-----------------------------------------------|
 | ESP32-S3 Dev Board | 1x       | Any ESP32-S3 variant (e.g., ESP32-S3-DevKitC-1) |
 | INMP441 Microphone | 1x       | I2S omnidirectional MEMS microphone             |
 | Jumper Wires       | 5x       | For connecting microphone to ESP32              |
 | USB Cable          | 1x       | For programming and power                       |
 
-Component	Quantity	Notes
-ESP32-S3 Dev Board	1x	Any ESP32-S3 variant (e.g., ESP32-S3-DevKitC-1)
-INMP441 Microphone	1x	I2S omnidirectional MEMS microphone
-Jumper Wires	5x	For connecting microphone to ESP32
-USB Cable	1x	For programming and power
 
 ## 🔌 Wiring Diagram
 
