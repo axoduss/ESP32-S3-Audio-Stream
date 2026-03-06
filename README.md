@@ -5,10 +5,10 @@ Real-time audio streaming from ESP32-S3 with INMP441 microphone to web browser v
 ##🌟 Overview
 This project enables real-time audio streaming from an ESP32-S3 board with an INMP441 I2S microphone to any web browser. The system uses UDP for low-latency audio transmission from the ESP32 to a Python bridge server, which converts it to WebSocket for browser compatibility.
 Perfect for:
-•	🎤 Live microphone monitoring
-•	📊 Audio visualization and analysis
-•	🎵 DIY intercom systems
-•	🔊 Remote audio sensing applications
+- 🎤 Live microphone monitoring
+- 📊 Audio visualization and analysis
+- 🎵 DIY intercom systems
+- 🔊 Remote audio sensing applications
 
 
 ## ✨ Features
@@ -33,14 +33,15 @@ USB Cable	1x	For programming and power
 
 ## 💻 Software Requirements
 On ESP32-S3
-•	Arduino IDE 2.x or PlatformIO
-•	ESP32 Arduino Core 3.x (by Espressif)
-•	Libraries: WiFi, WiFiUdp 
+- Arduino IDE 2.x or PlatformIO
+- ESP32 Arduino Core 3.x (by Espressif)
+- Libraries: WiFi, WiFiUdp 
 On PC/Server
-•	Python 3.8+
-•	Dependencies: pip install websockets asyncio
+- Python 3.8+
+- Dependencies: 
+> pip install websockets asyncio
 On Browser
-•	Modern Browser: Chrome, Firefox, Edge (with WebSocket & Web Audio API support)
+- Modern Browser: Chrome, Firefox, Edge (with WebSocket & Web Audio API support)
 
 
 ## 🏗️ System Architecture
