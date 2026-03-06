@@ -12,14 +12,18 @@ Perfect for:
 
 
 ## ✨ Features
-Feature	Description
-🎧 Real-time Audio	Stream audio with ~100-200ms latency
-📊 Waveform Display	Live oscilloscope-style waveform visualization
-🎵 Spectrum Analyzer	FFT-based frequency spectrum display
-💾 WAV Recording	Record and download audio directly from browser
-📈 Live Statistics	Monitor packets, volume, and latency in real-time
-🌐 Web Interface	No app installation required - works in any modern browser
-🔌 Easy Setup	Simple Python bridge server with minimal dependencies
+| Feature                 | Description                                                |
+| ----------------------- | -----------------------------------------------------------|
+| 🎧 Real-time Audio      | Stream audio with ~100-200ms latency                       |
+| 📊 Waveform Display     | Live oscilloscope-style waveform visualization             |
+| 🎵 Spectrum Analyzer    | FFT-based frequency spectrum display                       |
+| 💾 WAV Recording        | Record and download audio directly from browser            |
+| 📈 Live Statistics      | Monitor packets, volume, and latency in real-time          |
+| 🌐 Web Interface        | No app installation required - works in any modern browser |
+| 🔌 Easy Setup           |Simple Python bridge server with minimal dependencies       |
+	
+
+	
 
 
 ## 🔧 Hardware Requirements
@@ -40,6 +44,7 @@ On PC/Server
 - Python 3.8+
 - Dependencies: 
 > pip install websockets asyncio
+
 On Browser
 - Modern Browser: Chrome, Firefox, Edge (with WebSocket & Web Audio API support)
 
